@@ -163,37 +163,58 @@ def writeSeenMails(maildirfolder, seen_mails):
         seenFile.write("%s\0%s\n" %(uidvalidity, uid))
     seenFile.close()
 
-def archiveMails(imapcon, destination, excludes, recursiveExcludes):
-    log("Archiving mails, excluding: %s, recursivly: %s" %(excludes, recursiveExcludes), False)
-    folders = []
-    for folder in imapcon.list_folders():
-        if not(folder[2] in excludes or len([x for x in recursiveExcludes if folder[2].startswith(x)]) > 0):
-            foldername = folder[2]
-            foldersep = folder[1]
-            fsfoldername = [makeFSCompatible(fname) for fname in foldername.split(foldersep)]
-            # Create the mailboxes
-            targetmd = createMaildirs(destination, fsfoldername)
-            log("Using local maildir: %s - %s" %(fsfoldername,targetmd._path), False)
-            # Its not nice to access private attributes, but unfortunately there's no API at the moment
-            # which supplies the filesystem path that we need
-            seen_mails = readSeenMails(targetmd._path)
-            select_info = imapcon.select_folder(foldername)
-            uidvalidity = select_info['UIDVALIDITY']
-            log("Fetching mail ids for: 1-%s" %(select_info['EXISTS'],))
-            if select_info['EXISTS'] > 0:
-                uids = imapcon.fetch("1:%s" %(select_info['EXISTS'],), ['UID',])
-                for uid in uids:
-                    if not (uidvalidity,uid) in seen_mails:
-                        log("Fetching Mail: %s" %(uid,))
-                        msg = fetchMail(imapcon, uid)
-                        log("Got Mail Message: %s" %(msg,))
-                        # If a message cannot be stored, skip it instead of failing completely
-                        try:
-                            storeMessage(targetmd, msg)
-                            seen_mails.append((uidvalidity,uid))
-                        except Exception, e:
-                            log("Error storing mail: %s\n%s" %(msg,e), False)
-                writeSeenMails(targetmd._path, seen_mails)
+def archiveMails(imapcon, destination, includes=None, excludes=None):
+   
+    all_folders = [fdata[2] for fdata in imapcon.list_folders()]
+    foldersep = imapcon.get_folder_delimiter()
+    root_folders = [fname[:fname.find(foldersep)] for fname in all_folders]
+       
+    # stop on invalid folder names
+    invalids = [fname in (includes + excludes) if fname not in root_folders]
+    if invalids: 
+       raise Exception("One or more invalid folder names given: %s" % ', '.join(invalids))
+
+    # inclusive mode
+    if includes :
+        folders = [fname for fname in all_folders if fname in includes]
+        mode = "including %s" % ", ".join(folders)
+    # exclusive mode
+    elif excludes:
+        # subtraction does not work on tuples or lists
+        folders = set(all_folders) - set([fname for fname in all_folders if fname in excludes])        
+        mode = "excluding %s" % ", ".join(excludes)
+    # neither, get everything
+    else:
+        mode = "getting all folders"
+        folders = all_folders
+       
+    log("Archiving mails, %s" % mode)
+    
+    for foldername in folders:
+         fsfoldername = [makeFSCompatible(fname) for fname in foldername.split(foldersep)]
+         # Create the mailboxes
+         targetmd = createMaildirs(destination, fsfoldername)
+         log("Using local maildir: %s - %s" %(fsfoldername,targetmd._path), False)
+         # Its not nice to access private attributes, but unfortunately there's no API at the moment
+         # which supplies the filesystem path that we need
+         seen_mails = readSeenMails(targetmd._path)
+         select_info = imapcon.select_folder(foldername)
+         uidvalidity = select_info['UIDVALIDITY']
+         log("Fetching mail ids for: 1-%s" %(select_info['EXISTS'],))
+         if select_info['EXISTS'] > 0:
+             uids = imapcon.fetch("1:%s" %(select_info['EXISTS'],), ['UID',])
+             for uid in uids:
+                 if not (uidvalidity,uid) in seen_mails:
+                     log("Fetching Mail: %s" %(uid,))
+                     msg = fetchMail(imapcon, uid)
+                     log("Got Mail Message: %s" %(msg,))
+                     # If a message cannot be stored, skip it instead of failing completely
+                     try:
+                         storeMessage(targetmd, msg)
+                         seen_mails.append((uidvalidity,uid))
+                     except Exception, e:
+                         log("Error storing mail: %s\n%s" %(msg,e), False)
+             writeSeenMails(targetmd._path, seen_mails)
 
 def main():
     parser = argparse.ArgumentParser(
@@ -209,10 +230,9 @@ def main():
         help='Username to log into Gmail.')
     parser.add_argument('-c', '--credentials', dest='credentialsfile',
         help='Plain text file specifying username and password. Must contain 2 lines, first one with the username, second with the password. The file needs to be readable only by the current user')
-    parser.add_argument('-x', '--exclude', action='append', dest='excludes',
-        default=['[Google Mail]', '[Google Mail]/Trash', '[Google Mail]/Spam'], help='Exclude the given tag.')
-    parser.add_argument('-X', '--exclude-recursive', action='append', dest='recursiveExcludes',
-        default=[], help='Exclude the given tag and recursively all tags that are sub-tags of the given one. The tag needs to be given as full path, i.e. to exclude foo/bar/baz and foo/bar/bar you need to specify foo/bar.')
+    parser.add_argument('-x', '--exclude', action='append', dest='excludes', help='Exclude the given tag.')
+    parser.add_argument('-i', '--include', action='append', dest='includes', help='Include the given tag.')
+
     parser.add_argument('archivedir',
         help='Directory where to store the downloaded imap folders. Will also contain metadata to avoid re-downloading all files.')
 
