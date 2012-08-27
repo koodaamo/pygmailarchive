@@ -1,3 +1,4 @@
+
 #!/usr/bin/env python
 
 """Archive your gmail mailbox to a local directory.  Supports excluding tags,
@@ -47,19 +48,23 @@ import stat
 import sys
 import time
 import argparse
+import ConfigParser
 import imapclient
 import getpass
 import string
 import re
 import unicodedata
 import mailbox
+import logging
+
+
+FORMAT = "[%(asctime)s]: %(message)s"
+DATEFORMAT = '%H:%M:%S'
+logging.basicConfig(level=logging.WARN, format=FORMAT, datefmt=DATEFORMAT)
+log=logging.info
 
 SEENMAILS_FILENAME = "pygmailarchive.seenmails"
-VERBOSE = False
 
-def log(message, verbose=True):
-    if verbose and VERBOSE or not verbose:
-        print '[%s]: %s' % (time.strftime('%H:%M:%S'), message)
 
 def isUserReadWritableOnly(mode):
     return bool(stat.S_IRUSR & mode) and not (
@@ -71,28 +76,54 @@ def isUserReadWritableOnly(mode):
             bool(stat.S_IWOTH & mode) or
             bool(stat.S_IXOTH & mode) )
 
-def readCredentials(credentialsfile, username, password):
-    if credentialsfile is not None:
-        if not os.path.exists(credentialsfile):
-            raise Exception("Non-existing credentials file specified: '%s'" %(credentialsfile,))
-        status = os.stat(credentialsfile)
+def checkConfig(configfile):
+    if configfile is not None:
+        if not os.path.exists(configfile):
+            raise Exception("Non-existing config file specified: '%s'" % (configfile,))
+        status = os.stat(configfile)
         mode = status.st_mode
         if not stat.S_ISREG(mode):
-            raise Exception("Credentials filename does not point to a regular file: '%s'" %(credentialsfile,))
-        if not os.access(credentialsfile, os.R_OK):
-            raise Exception("Credentials file '%s' is not readable by current user" %(credentialsfile,))
+            raise Exception("Config filename does not point to a regular file: '%s'" %(configfile,))
+        if not os.access(configfile, os.R_OK):
+            raise Exception("Config file '%s' is not readable by current user" %(configfile,))
         if not isUserReadWritableOnly(mode):
-            raise Exception("Credentials file '%s' is readable by other users, possible security problem, aborting." %(credentialsfile,))
-        lines = open(credentialsfile).readlines()
-        if len(lines) != 2:
-            raise Exception("Invalid credentials file '%s', needs to have 2 lines, first containing the username, second line containing the password: '%s'" %(credentialsfile, ''.join(lines)))
-        username = lines[0].strip()
-        password = lines[1].strip()
-    if username is None:
-        username = raw_input("Username: ")
-    if password is None:
-        password = getpass.getpass()
+            raise Exception("Config file '%s' is readable by other users, possible security problem, aborting" %(configfile,))
+        config = ConfigParser.SafeConfigParser()
+       
+        try:
+           config.read(configfile)
+        except ConfigParser.MissingSectionHeaderError:
+            raise Exception("Config file needs to have either [authentication] or [archival] section, or both.")
+
+
+def readConfig(config, opts):
+    "read configuration file into options"
+    for section, option in opts.items():
+       try:
+          opts[section][option] = config.get(section, option)
+       except:
+          pass
+
+def readArgs(opts, args):
+    "read cmdline args into options"
+    for section in opts:
+        for opt in opts[section]:
+            if hasattr(args, opt):
+                opts[section][opt] = getattr(args, opt)
+
+def checkFolders(includes, excludes, all_folders, foldersep):
+    "stop on invalid folder names"
+    root_folders = [fname.split(foldersep)[0] for fname in all_folders]
+    invalids = [fname for fname in (includes + excludes) if fname not in root_folders]
+    if invalids:
+       raise Exception("One or more invalid folder names given: %s" % ', '.join(invalids))
+
+
+def readCredentials(opts):
+    username = opts["authentication"]["username"] or raw_input("Username: ")
+    password = opts["authentication"]["password"] or getpass.getpass()
     return (username, password)
+
 
 def connectToGMail(username, password):
     imapcon = imapclient.IMAPClient("imap.gmail.com", ssl=True)
@@ -163,22 +194,19 @@ def writeSeenMails(maildirfolder, seen_mails):
         seenFile.write("%s\0%s\n" %(uidvalidity, uid))
     seenFile.close()
 
-def archiveMails(imapcon, destination, includes=None, excludes=None):
+def archiveMails(imapcon, destination, excludes, includes):
    
     all_folders = [fdata[2] for fdata in imapcon.list_folders()]
-    foldersep = imapcon.get_folder_delimiter()
-    root_folders = [fname[:fname.find(foldersep)] for fname in all_folders]
-       
+    # get the personal namespace (folder path) separator
+    foldersep = imapcon.namespace().personal[0][1]
     # stop on invalid folder names
-    invalids = [fname in (includes + excludes) if fname not in root_folders]
-    if invalids: 
-       raise Exception("One or more invalid folder names given: %s" % ', '.join(invalids))
+    checkFolders(includes, excludes, all_folders, foldersep)
 
-    # inclusive mode
+    # folder selection - inclusive mode
     if includes :
         folders = [fname for fname in all_folders if fname in includes]
         mode = "including %s" % ", ".join(folders)
-    # exclusive mode
+    # folder selection -exclusive mode
     elif excludes:
         # subtraction does not work on tuples or lists
         folders = set(all_folders) - set([fname for fname in all_folders if fname in excludes])        
@@ -189,7 +217,7 @@ def archiveMails(imapcon, destination, includes=None, excludes=None):
         folders = all_folders
        
     log("Archiving mails, %s" % mode)
-    
+
     for foldername in folders:
          fsfoldername = [makeFSCompatible(fname) for fname in foldername.split(foldersep)]
          # Create the mailboxes
@@ -218,38 +246,69 @@ def archiveMails(imapcon, destination, includes=None, excludes=None):
 
 def main():
     parser = argparse.ArgumentParser(
-        description=__doc__,
+        description=__doc__ + "At minimum, you must provide username & password, and either the archive directory (-a/--archivedir), or use the folder/tag listing command (-l/--list)",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
 
     parser.add_argument('-v', '--version', action='version',
         version=__version__)
-    parser.add_argument('-p', '--password', dest='password',
-        help='Password to log into Gmail.')
-    parser.add_argument('-u', '--username', dest='username',
-        help='Username to log into Gmail.')
-    parser.add_argument('-c', '--credentials', dest='credentialsfile',
-        help='Plain text file specifying username and password. Must contain 2 lines, first one with the username, second with the password. The file needs to be readable only by the current user')
-    parser.add_argument('-x', '--exclude', action='append', dest='excludes', help='Exclude the given tag.')
-    parser.add_argument('-i', '--include', action='append', dest='includes', help='Include the given tag.')
 
-    parser.add_argument('archivedir',
-        help='Directory where to store the downloaded imap folders. Will also contain metadata to avoid re-downloading all files.')
+    conf = parser.add_argument_group("Configuration file", "Settings can alternatively be read from a config file.")
+    conf.add_argument('-c', '--config', dest='configfile',
+        help="Name of the (ini-formatted) config file specifying command options. If a config file is used, command-line parameters are ignored.")
+
+    auth = parser.add_argument_group("Authentication", "Username & password.")
+    auth.add_argument('-p', '--password', dest='password',
+        help='Password to log into Gmail.')
+    auth.add_argument('-u', '--username', dest='username',
+        help='Username to log into Gmail.')
+
+    archival = parser.add_argument_group("Archival", "Archive messages from chosen folders (tags) to a local maildir folder structure")
+    archival.add_argument('-x', '--exclude', metavar="TAG", nargs="+", action='append', dest='excludes', default=[],
+        help='Exclude the given tags.')
+    archival.add_argument('-i', '--include', metavar="TAG", nargs="+", dest='includes',
+        help='Include the given tags.')
+    archival.add_argument('-a', '--archivedir',
+        help='Set the directory where to store the downloaded imap folders. Will also contain metadata to avoid re-downloading all files.')
+
+    listing = parser.add_argument_group("Folder/tag listing", "Don't archive, just list all message tag (folder) names")
+    listing.add_argument('-l', '--list', action="store_true", help='List all folders.')
 
     args = parser.parse_args()
-
     log("Arguments: %s" %(args,))
 
-    (username, password) = readCredentials(args.credentialsfile, args.username, args.password)
+    # Require either archival or listing operation
+    if not (args.archivedir or args.list):
+        parser.print_help()
+        sys.exit()
 
-    archivedir = setupArchiveDir(args.archivedir)
-
+    # Options read from both config & cmdline args (the latter override if both are present)
+    opts = {"authentication": {"username":None, "password":None},
+            "archival": {"includes":[], "excludes":[], "archivedir":None}
+    }
+    # A config file was passed, read it
+    if args.configfile:
+        config = checkConfig(args.configfile)
+        readConfig(opts, config)
+    # Apply overrides from args
+    readArgs(opts, args)    
+    
+    # Authenticate & connect
+    (username, password) = readCredentials(opts)
     imapcon = connectToGMail(username, password)
 
+    # If the listing (-l/--list) command was given
+    if args.list:
+       print "\n".join([d[2] for d in imapcon.list_folders()])
+       sys.exit()
+
+    # Otherwise, we're archiving the folders
+    archivedir = setupArchiveDir(args.archivedir)
     try:
-        archiveMails(imapcon, archivedir, args.excludes, args.recursiveExcludes)
+        archiveMails(imapcon, archivedir, includes=args.includes, excludes=args.excludes)
     finally:
         disconnectFromGMail(imapcon)
+
 
 if __name__ == '__main__':
     main()
