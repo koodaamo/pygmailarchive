@@ -32,8 +32,8 @@ def parser():
     auth.add_argument('-u', '--username', dest='username', help='Username to log into Gmail.')
 
     archival = parser.add_argument_group("Archival", "Archive messages from chosen folders (tags) to a local maildir folder structure")
-    archival.add_argument('-x', '--exclude', nargs="+", action="append", dest='excludes', help='Exclude the given tags.')
-    archival.add_argument('-i', '--include', nargs="+", action="append", dest='includes', help='Include the given tags.')
+    archival.add_argument('-x', '--exclude', nargs="+", dest='excludes', help='Exclude the given tags.')
+    archival.add_argument('-i', '--include', nargs="+", dest='includes', help='Include the given tags.')
     archival.add_argument('-a', '--archivedir', help='Path to a directory to use for storing the downloaded imap folders and pygmailarchive metadata.')
 
     listing = parser.add_argument_group("Folder/tag listing", "Don't archive, just list all message tag (folder) names")
