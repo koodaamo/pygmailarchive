@@ -13,116 +13,106 @@ This tool will not delete mails locally that have been deleted remotely.
 import sys
 import os
 import getpass
-import logging
-import ConfigParser
+import mailbox
 
+
+from ConfigParser import SafeConfigParser
 from pygmailarchive.argparsing import parser
-from pygmailarchive.maildir import maildir
-from pygmailarchive.util import gmail, checkIMAPFolders, checkConfigFile
-
-FORMAT = "[%(asctime)s]: %(message)s"
-DATEFORMAT = '%H:%M:%S'
-logging.basicConfig(level=logging.WARN, format=FORMAT, datefmt=DATEFORMAT)
-logger=logging.getLogger("gmailarchive")
-log=logger.info
+from pygmailarchive.util import gmail, logger, makeFSCompatible, mailfolder
+from pygmailarchive.config import getconfig, FOLDERLIST_CMD
 
 
 def main():
 
+    # COMMAND-LINE ARGS & CONFIG FILE
     argparser = parser()
     args = argparser.parse_args()
-    logger.debug("Arguments: %s" %(args,))
+    cfg = SafeConfigParser()
 
-    # If a config file was passed, check & read it
-    cfg = ConfigParser.SafeConfigParser()
-    if args.cfgfile:
-        checkConfigFile(args.cfgfile)
-        try:
-           cfg.read(args.cfgfile)
-        except ConfigParser.MissingSectionHeaderError:
-           raise Exception("Config file needs to have [authentication] and/or [archival] section")
+    # get the configuration
+    cmd, user, passwd, includes, excludes, archivedir, loglevel = getconfig(args, cfg)
 
-    # Options in config file are overriden by command-line args, if given
-    # Here's a convenience to get the possibly overriden option
-    var = lambda s, o: getattr(args, o, None) or cfg.get(s, o)
+    includes = includes or []
+    excludes = excludes or []
 
-    if args.loglevel:
-        logger.setLevel(args.loglevel)
+    if loglevel:
+        logger.setLevel(loglevel)
 
     # Require either archival or listing operation before proceeding.
-    archivedir = var("archival", "archivedir")
-    if not (archivedir or args.list):
+    if not cmd:
         argparser.print_help()
         sys.exit()
 
     # Auth & connect
-    username = var("authentication", "username") or raw_input("Username: ")
-    password = var("authentication", "password") or getpass.getpass()
+    username = user or raw_input("Username: ")
+    password = passwd or getpass.getpass()
 
     with gmail(username, password) as imapcon:
 
-       # If the folder listing (-f/--folders) command was given
-       if args.folders:
-          print "\n".join([d[2] for d in imapcon.list_folders()])
-          sys.exit()
+       logger.info("Connected")
+       # Get folder listing first
+       all_folders = [fdata[2] for fdata in imapcon.list_folders()]
 
-       # Otherwise, we're archiving the folders:
-       # Make sure the directory exists first
+       # If requested (-f/--folders), just output it & exit
+       if cmd == FOLDERLIST_CMD:
+          sys.exit("Folders on server: %s" % " ".join(all_folders))
+
+       # Parse, check and apply folder constraints given by user.
+       # Constraints are given using '/' as the folder path separator
+       fldrsep = imapcon.namespace().personal[0][1]
+       fixsep = lambda pths: [unicode(pth.replace('/', fldrsep)) for pth in pths]
+
+       if includes or excludes:
+           inv_inc = [f for f in fixsep(includes) if f not in all_folders]
+           inv_exc = [f for f in fixsep(excludes) if f not in all_folders]
+           invalids = "' and '".join(inv_inc + inv_exc)
+           if invalids:
+              sys.exit("Invalid include/exclude folder names: '%s'" % invalids)
+
+       folders = includes or [f for f in all_folders if f not in excludes]
+       logger.info("Archiving: %s" % ", ".join(folders))
+
+       # Ok. Set up the archive dir.
        if not os.path.isabs(archivedir):
            archivedir = os.path.join(os.getcwd(), archivedir)
        if not os.path.exists(archivedir):
            os.makedirs(archivedir)
+       archive = mailbox.Maildir(archivedir)
 
-       # get the 'personal namespace separator' (folder path separator, usually '/')
-       foldersep = imapcon.namespace().personal[0][1]
-
-       # stop on invalid folder names
-       includes = var("archival", "includes")
-       excludes = var("archival", "excludes")
-       includes = includes.split(",") if includes else []
-       excludes = excludes.split(",") if excludes else []
-
-       all_folders = [fdata[2] for fdata in imapcon.list_folders()]
-       checkIMAPFolders(includes, excludes, all_folders, foldersep)
-
-       # folder selection based on user input
-       if includes :
-           folders = [fname for fname in all_folders if fname in includes]
-           mode = "including %s" % ", ".join(folders)
-       elif excludes:
-           folders = set(all_folders) - set([fname for fname in all_folders if fname in excludes])
-           mode = "excluding %s" % ", ".join(excludes)
-       else:
-           mode = "getting all folders"
-           folders = all_folders
-       logger.info("Archiving mails, %s folder(s)..." % mode)
-
+       # Archive messages!
        for foldername in folders:
-           with maildir(archivedir, foldername, foldersep) as (targetmd, seen_mails):
-               if seen_mails:
-                   logger.info("Cache has %i messages" % len(seen_mails))
-               select_info = imapcon.select_folder(foldername)
-               uidvalidity = select_info['UIDVALIDITY']
-               logger.info("Fetching mail ids for: 1-%s" %(select_info['EXISTS'],))
-               if select_info['EXISTS'] > 0:
-                   uids = imapcon.fetch("1:%s" %(select_info['EXISTS'],), ['UID',])
-                   for uid in uids:
-                       if not (uidvalidity,uid) in seen_mails:
-                           logger.info("Fetching Mail: %s" %(uid,))
-                           fetch_info = imapcon.fetch(uid, ["BODY.PEEK[]",])
-                           logger.info("Fetched Info for uid %s: %s" %(uid, fetch_info))
-                           msg = fetch_info[uid]["BODY[]"]
-                           logger.debug("Got Mail Message: %s" %(msg,))
+           select_info = imapcon.select_folder(foldername)
+           if select_info['EXISTS'] == 0:
+               logger.info("Folder %s: no messages!" % foldername)
+               continue
 
-                           # If a message cannot be stored, skip it instead of failing completely
-                           try:
-                               targetmd.add(msg)
-                               seen_mails.append((uidvalidity,uid))
-                           except Exception, e:
-                               logger.error("Error storing mail: %s\n%s" %(msg,e), False)
-                       else:
-                           logger.info("Already fetched: %s" % uid)
+           uids = imapcon.fetch("1:%s" %(select_info['EXISTS'],), ['UID',])
+           logger.info("Folder %s: %i messages on server" % (foldername, len(uids)))
+           logger.debug("... fetching ids for 1-%s" %(select_info['EXISTS'],))
 
+           uidvalidity = select_info['UIDVALIDITY']
+           logger.debug("... UID validity: %s" % uidvalidity)
+
+           parts = [makeFSCompatible(unicode(prt)) for prt in foldername.split(fldrsep)]
+           fsname = '.'.join(parts)
+
+           with mailfolder(archive, fsname) as (folder, cached_uid_info):
+               newuids = [id for id in uids if ((uidvalidity, id) not in cached_uid_info)]
+               oldcount, newcount = len(cached_uid_info), len(newuids)
+               logger.info("... %i archived messages, %i new" % (oldcount, newcount))
+
+               for uid in newuids:
+                   logger.info("... fetching uid %s" % uid)
+                   fetch_info = imapcon.fetch(uid, ["BODY.PEEK[]",])
+                   logger.debug("... info: %s" % fetch_info)
+                   msg = fetch_info[uid]["BODY[]"]
+
+                   # If a message cannot be stored, skip it instead of failing
+                   try:
+                        folder.add(msg)
+                        cached_uid_info.append((uidvalidity,uid))
+                   except Exception, e:
+                        logger.error("... error storing mail: %s\n%s" %(msg,e), False)
 
 
 if __name__ == '__main__':
