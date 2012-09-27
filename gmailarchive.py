@@ -86,7 +86,7 @@ def main():
                logger.info("Folder %s: no messages!" % foldername)
                continue
 
-           uids = imapcon.fetch("1:%s" %(select_info['EXISTS'],), ['UID',])
+           uids = imapcon.fetch("1:%s" % select_info['EXISTS'], ['UID',])
            logger.info("Folder %s: %i messages on server" % (foldername, len(uids)))
            logger.debug("... fetching ids for 1-%s" %(select_info['EXISTS'],))
 
