@@ -10,7 +10,7 @@ def read(fname):
 
 setup(
         name = "pygmailarchive",
-        version = "0.3.4-koodaamo",
+        version = "0.3.5-koodaamo",
         author = "Andreas Pakulat",
         author_email = "apaku@gmx.de",
         description = ("An utility to archive Mails from GMail accounts."),

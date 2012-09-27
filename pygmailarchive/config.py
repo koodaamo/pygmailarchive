@@ -44,7 +44,7 @@ def getconfig(args, cfg):
     user, passwd = opt("authentication", "username"), opt("authentication", "password")
 
     # command to be executed
-    if args.folders
+    if args.folders:
        cmd = FOLDERLIST_CMD
     elif opt("archival", "archivedir"):
        cmd = ARCHIVE_CMD
