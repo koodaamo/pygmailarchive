@@ -6,7 +6,7 @@ pygmailarchive downloads all mails from your GMail account via IMAP, storing the
 as they are presented on the IMAP server. This means all your labels and sub-labels will be converted into
 Maildir folders in the destination folder.
 
-You can exclude certain labels or even a complete label-hierarchy easily. This is useful for people having
+You can include or exclude certain labels or even a complete label-hierarchy easily. This is useful for people having
 lists or emails that are already archived elsewhere.
 
 Subsequent executions of the tool will download all mails that haven't been fetched so far, the tool keeps
@@ -18,8 +18,8 @@ Requirements:
  * Python 2.7
  * IMAPClient (http://imapclient.freshfoo.com/)
 
-Howto use:
-pygmailarchive gmailarchive/
+Example of howto use:
+gmailarchive -u username -p password -a gmailarchive
 
 See pygmailarchive --help for more options
 
