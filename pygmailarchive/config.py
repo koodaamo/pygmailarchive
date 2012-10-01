@@ -53,6 +53,11 @@ def getconfig(args, cfg):
 
     # constraints
     includes, excludes = opt("archival", "include"), opt("archival", "exclude")
+    if type(includes) == unicode:
+       includes = [inc.strip() for inc in includes.strip().split(",")]
+    if type(excludes) == unicode:
+       excludes = [exc.strip() for exc in excludes.strip().split(",")]
+
     archivedir = opt("archival", "archivedir")
     loglevel = args.loglevel
 
