@@ -1,4 +1,5 @@
-pygmailarchive a commandline tool to archive a GMail account to a local Maildir directory.
+pygmailarchive a commandline tool to archive a GMail account to a local Maildir directory, originally
+written by Anders Pakulat
 
 This tool is licensed under the "Simplified BSD License", see LICENSE for details.
 
