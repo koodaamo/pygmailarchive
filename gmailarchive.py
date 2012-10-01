@@ -1,4 +1,3 @@
-
 #!/usr/bin/env python
 
 """Archive your gmail mailbox to a local directory.  Supports excluding tags,
