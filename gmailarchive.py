@@ -10,6 +10,7 @@ This tool will not delete mails locally that have been deleted remotely.
 """
 
 import sys
+import math
 import os
 import getpass
 import mailbox
@@ -87,7 +88,7 @@ def main():
 
            uids = imapcon.fetch("1:%s" % select_info['EXISTS'], ['UID',])
            logger.info("Folder %s: %i messages on server" % (foldername, len(uids)))
-           logger.debug("... fetching ids for 1-%s" %(select_info['EXISTS'],))
+           logger.debug("... fetching uids for 1-%s" %(select_info['EXISTS'],))
 
            uidvalidity = select_info['UIDVALIDITY']
            logger.debug("... UID validity: %s" % uidvalidity)
@@ -100,19 +101,29 @@ def main():
                oldcount, newcount = len(cached_uid_info), len(newuids)
                logger.info("... %i archived messages, %i new" % (oldcount, newcount))
 
-               for uid in newuids:
-                   logger.info("... fetching uid %s" % uid)
+               # use batched logging
+               fetched = []
+               interval = 1
+               if len(newuids) > 100:
+                   interval = int(math.sqrt(len(newuids)))
+                   logger.warn("... using batched logging (entry per %i msgs)" % interval)
+
+               for i, uid in enumerate(newuids):
                    fetch_info = imapcon.fetch(uid, ["BODY.PEEK[]",])
                    logger.debug("... info: %s" % fetch_info)
                    msg = fetch_info[uid]["BODY[]"]
 
                    # If a message cannot be stored, skip it instead of failing
                    try:
-                        folder.add(msg)
-                        cached_uid_info.append((uidvalidity,uid))
+                       folder.add(msg)
+                       cached_uid_info.append((uidvalidity,uid))
                    except Exception, e:
-                        logger.error("... error storing mail: %s\n%s" %(msg,e), False)
+                       logger.error("... error storing mail: %s\n%s" %(msg,e), False)
 
+                   fetched.append(str(uid))
+                   if not (i % interval):
+                       logger.info("... got message(s): %s" % ", ".join(fetched))
+                       fetched = []
 
 if __name__ == '__main__':
     main()
