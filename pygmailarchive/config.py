@@ -52,7 +52,7 @@ def getconfig(args, cfg):
        sys.exit("Either give the -f/--folders command, or specify the archive dir")
 
     # constraints
-    includes, excludes = opt("archival", "includes"), opt("archival", "excludes")
+    includes, excludes = opt("archival", "include"), opt("archival", "exclude")
     archivedir = opt("archival", "archivedir")
     loglevel = args.loglevel
 
@@ -83,6 +83,6 @@ def checkConfigFile(cfgfile):
         raise Exception("Invalid config file sections given. Provide [authentication] and/or [archival] section(s).")
 
     all_options = cfg.options("authentication") + cfg.options("archival")
-    if not set(all_options).issubset(("username", "password", "includes", "excludes", "archivedir")):
+    if not set(all_options).issubset(("username", "password", "include", "exclude", "archivedir")):
         raise Exception("One or more invalid config file options given. Check your config file.")
 
