@@ -73,10 +73,6 @@ def main():
        logger.info("Archiving: %s" % ", ".join(folders))
 
        # Ok. Set up the archive dir.
-       if not os.path.isabs(archivedir):
-           archivedir = os.path.join(os.getcwd(), archivedir)
-       if not os.path.exists(archivedir):
-           os.makedirs(archivedir)
        archive = mailbox.Maildir(archivedir)
 
        # Archive messages!

@@ -49,7 +49,8 @@ def getconfig(args, cfg):
     elif opt("archival", "archivedir"):
        cmd = ARCHIVE_CMD
     else:
-       sys.exit("Either give the -f/--folders command, or specify the archive dir")
+       # will check & exit with help msg later
+       cmd = None
 
     # constraints
     includes, excludes = opt("archival", "include"), opt("archival", "exclude")

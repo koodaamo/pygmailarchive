@@ -7,7 +7,7 @@ This tool will not download the Spam or Trash folders at the moment.
 This tool will not delete mails locally that have been deleted remotely.
 """
 
-__version__ = "0.3.1"
+__version__ = "0.3.9"
 
 import argparse
 import logging
