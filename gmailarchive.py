@@ -11,7 +11,6 @@ This tool will not delete mails locally that have been deleted remotely.
 
 import sys
 import math
-import os
 import getpass
 import mailbox
 
@@ -70,7 +69,7 @@ def main():
               sys.exit("Invalid include/exclude folder names: '%s'" % invalids)
 
        folders = includes or [f for f in all_folders if f not in excludes]
-       logger.info("Archiving: %s" % ", ".join(folders))
+       logger.info("Archiving '%s' to maildir at %s" % ("', '".join(folders), archivedir))
 
        # Ok. Set up the archive dir.
        archive = mailbox.Maildir(archivedir)
