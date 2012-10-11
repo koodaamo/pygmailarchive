@@ -1,7 +1,6 @@
 import os
 import stat
 import ConfigParser
-import sys
 
 from util import isUserReadWritableOnly
 
