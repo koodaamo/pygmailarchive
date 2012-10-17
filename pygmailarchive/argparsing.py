@@ -14,7 +14,7 @@ import argparse
 import logging
 
 
-def parent_parser():
+def get_parent_parser():
     "make a parent parser that can also be used in third-party apps"
     parent = argparse.ArgumentParser(add_help=False)
     auth = parent.add_argument_group("Authentication", "Username & password.")
@@ -44,7 +44,7 @@ def parent_parser():
     return parent
 
 
-def parser():
+def get_parser():
     "build the argument parser"
 
     hlp = (
@@ -53,7 +53,7 @@ def parser():
       "In either case, username & password\nare of course required as well."
     )
     frmt = argparse.RawDescriptionHelpFormatter
-    parent = parent_parser()
+    parent = get_parent_parser()
     parser = argparse.ArgumentParser(description=__doc__ + hlp, formatter_class=frmt,
                                      parents=[parent])
 

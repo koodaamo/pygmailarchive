@@ -7,25 +7,28 @@ import mailbox
 
 
 from ConfigParser import SafeConfigParser
-from pygmailarchive.argparsing import parser
+from pygmailarchive.argparsing import get_parser
 from pygmailarchive.util import gmail, logger, makeFSCompatible, mailfolder
 from pygmailarchive.config import getconfig, FOLDERLIST_CMD
 
+# if you use this from third-party software, pass both a parser instance and parsed args
+# and optionally a logger
 
-def run():
+def run(parser=None, args=None, thirdpartylogger=None):
 
-    # COMMAND-LINE ARGS & CONFIG FILE
-    argparser = parser()
-    args = argparser.parse_args()
+    # COMMAND-LINE ARGS
+    argparser = parser or get_parser()
+    args = args or argparser.parse_args()
+
+    # CONFIGURATION (including config file read)
     cfg = SafeConfigParser()
-
-    # get the configuration
     cmd, user, passwd, includes, excludes, archivedir, loglevel = getconfig(args, cfg)
 
     includes = includes or []
     excludes = excludes or []
 
-    if loglevel:
+    # log levels are tied to args and their parsing
+    if loglevel and not thirdpartylogger:
         logger.setLevel(loglevel)
 
     # Require either archival or listing operation before proceeding.
