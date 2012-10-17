@@ -23,21 +23,21 @@ def get_parent_parser():
     auth.add_argument('-u', '--username', dest='username',
       help='Username to log into Gmail.')
 
-    hlp = "Archive chosen folders/tags to a local maildir++ folder structure"
+    hlp = "Archive chosen folders (tags) to a local maildir++ folder structure"
     arch = parent.add_argument_group("Archival", hlp)
-    arch.add_argument('-x', '--exclude', nargs="+", dest='excludes',
-      help='Exclude given tags.'
+    arch.add_argument('-x', '--exclude', nargs="+", metavar="FOLDERNAME", dest='excludes',
+      help='Exclude given folders/tags.'
     )
-    arch.add_argument('-i', '--include', nargs="+", dest='includes',
-      help='Include given tags.'
+    arch.add_argument('-i', '--include', nargs="+", metavar="FOLDERNAME", dest='includes',
+      help='Include given folders (tags).'
     )
     hlp = (
-      "Path to a directory to use for storing the downloaded imap folders and"
+      "Path of the directory to use for storing the downloaded imap folders and"
       "pygmailarchive metadata."
     )
-    arch.add_argument('-a', '--archivedir', help=hlp)
+    arch.add_argument('-a', '--archivedir', metavar="PATH", help=hlp)
     lst = parent.add_argument_group("Folder/tag listing",
-      "Don't archive, just list all message tag (folder) names"
+      "Don't archive, just list all message folder (tag) names"
     )
     lst.add_argument('-f', '--folders', action="store_true", help='List all folders.')
 
