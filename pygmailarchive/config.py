@@ -54,7 +54,7 @@ def getconfig(args, cfg):
        cmd = None
 
     # constraints
-    includes, excludes = opt("archival", "include"), opt("archival", "exclude")
+    includes, excludes = opt("archival", "includes"), opt("archival", "excludes")
     if type(includes) == unicode:
        includes = [inc.strip() for inc in includes.strip().split(",")]
     if type(excludes) == unicode:
