@@ -33,7 +33,7 @@ def getconfig(args, cfg):
     "combine cmdline and config file opts together"
 
     # CONFIG FILE
-    if args.cfgfile:
+    if hasattr(args, "cfgfile"):
         checkConfigFile(args.cfgfile)
         cfg.read(args.cfgfile)
 
