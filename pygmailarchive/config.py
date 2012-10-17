@@ -1,3 +1,5 @@
+"Configuration settings, config file checking and parsing"
+
 import os
 import stat
 import ConfigParser

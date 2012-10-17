@@ -1,14 +1,5 @@
 #!/usr/bin/env python
 
-"""Archive your gmail mailbox to a local directory.  Supports excluding tags,
-optionally recursively and stores the mails in the same hierarchy as seen via
-IMAP. Messages with multiple labels will be fetched into the first folder that
-is seen containing them. This means in particular that the "All Mail" folder
-will not necessarily contain all messages in case the mails have other labels.
-This tool will not download the Spam or Trash folders at the moment.
-This tool will not delete mails locally that have been deleted remotely.
-"""
-
 import sys
 import math
 import getpass
