@@ -18,6 +18,12 @@ You can include or exclude certain gmail labels (IMAP folders) or even a complet
 label-hierarchy easily. This is useful for people having lists or emails that are
 already archived elsewhere, or for archiving certain lists or emails only.
 
+Settings can also be given in a ini-formatted configuration file.
+
+Note that in the ini config file, include and exclude constraints must be given as
+comma-separated lists of folder names. On command line, constraint lists are given
+space-separated; so any folder containing whitespace must be quoted.
+
 Requirements:
  * Python 2.7
  * IMAPClient (http://imapclient.freshfoo.com/)
@@ -25,5 +31,5 @@ Requirements:
 Example of how to use:
 gmailarchive -u username -p password -a gmailarchive
 
-See pygmailarchive --help for more options
+See gmailarchive --help for more options
 
