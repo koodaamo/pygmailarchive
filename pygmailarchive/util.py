@@ -1,21 +1,57 @@
 import os
 import stat
+import sys
 import string
 import re
-import logging
+import codecs
 import unicodedata
 import imapclient
+import ConfigParser
 from contextlib import contextmanager
 
-#from config import SEENMAILS_FILENAME, LOG_FORMAT, LOG_DATEFORMAT
+from config import ENCODING, SEENMAILS_FILENAME
 
-LOG_FORMAT = "[%(asctime)s]: %(message)s"
-LOG_DATEFORMAT = '%H:%M:%S'
-SEENMAILS_FILENAME = "pygmailarchive.seenmails"
+# used in arg parser to convert values using 'type=unicode_decoded'
+unicode_decoded = lambda x: x.decode(sys.stdin.encoding)
+
+# used below in process_list_opt
+stripsplit = lambda opt: opt.strip().strip(',').strip().split(",")
+
+def process_list_opt(opt):
+    "split comma-separated 'list' option into a tuple"
+    if ',' in opt:
+       return [item.strip() for item in stripsplit(opt)]
+    else:
+      return [opt]
 
 
-logging.basicConfig(level=logging.INFO, format=LOG_FORMAT, datefmt=LOG_DATEFORMAT)
-logger=logging.getLogger("gmailarchive")
+def checkConfigFile(cfgfile):
+    "check the file"
+
+    if not os.path.exists(cfgfile):
+       raise Exception("Non-existing config file specified: '%s'" % (cfgfile,))
+    status = os.stat(cfgfile)
+    mode = status.st_mode
+    if not stat.S_ISREG(mode):
+       raise Exception("Config filename does not point to a regular file: '%s'" %(cfgfile,))
+    if not os.access(cfgfile, os.R_OK):
+        raise Exception("Config file '%s' is not readable by current user" %(cfgfile,))
+    if not isUserReadWritableOnly(mode):
+        raise Exception("Config file '%s' is readable by other users, possible security problem, aborting" %(cfgfile,))
+
+    cfg = ConfigParser.SafeConfigParser()
+    try:
+        cfg.readfp(codecs.open(cfgfile, 'r', ENCODING))
+    except ConfigParser.MissingSectionHeaderError:
+        raise Exception("Config file has no sections. It needs to have a [defaults] section.")
+
+    if not cfg.sections() == ["defaults"]:
+        raise Exception("Only a [defaults] section allowed. Check your config file.")
+
+    all_options = ("username", "password", "include", "exclude", "archivedir", "loglevel")
+
+    if not set(cfg.options("defaults")).issubset(all_options):
+        raise Exception("One or more invalid options given. Check your config file.")
 
 
 @contextmanager
