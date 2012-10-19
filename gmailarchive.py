@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-from pygmailarchive.main import run
+from pygmailarchive.main import run_archiver
 
 if __name__ == '__main__':
-    run()
+    run_archiver()

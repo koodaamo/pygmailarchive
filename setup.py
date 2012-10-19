@@ -22,7 +22,7 @@ setup(
         packages=find_packages(exclude=['ez_setup']),
         entry_points = """
           [console_scripts]
-          gmailarchive = pygmailarchive.main:run
+          gmailarchive = pygmailarchive.main:run_archiver
         """,
         data_files = [('share/doc/pygmailarchive', ['README','LICENSE'])],
         long_description = read('README'),
